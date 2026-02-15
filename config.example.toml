@@ -1,0 +1,15 @@
+[app]
+host = "127.0.0.1"
+port = 8000
+database_path = "rdp_lottery.db"
+
+[scanner]
+timing_template = 4
+host_timeout_seconds = 120
+
+[atproto]
+enabled = false
+service_url = "https://bsky.social"
+username = ""
+app_password = ""
+post_template = "Jackpot! Found an open {proto} host{hostname_suffix}\n{asn}\n{ip_type}"

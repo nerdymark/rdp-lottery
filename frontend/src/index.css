@@ -1,0 +1,226 @@
+@import "tailwindcss";
+
+@theme {
+  --color-casino-felt: #0a4a2e;
+  --color-casino-felt-light: #0d5c39;
+  --color-casino-dark: #061f14;
+  --color-casino-gold: #d4a843;
+  --color-casino-gold-bright: #f0c95c;
+  --color-casino-red: #c0392b;
+  --color-casino-red-bright: #e74c3c;
+  --color-casino-neon: #39ff14;
+  --color-casino-chip-blue: #2563eb;
+  --color-casino-chip-red: #dc2626;
+  --color-casino-chip-green: #16a34a;
+  --color-casino-chip-black: #1a1a2e;
+  --font-display: 'Playfair Display', serif;
+  --font-mono: 'JetBrains Mono', monospace;
+}
+
+body {
+  font-family: 'Inter', sans-serif;
+  background:
+    radial-gradient(ellipse at center, var(--color-casino-felt-light) 0%, var(--color-casino-felt) 40%, var(--color-casino-dark) 100%);
+  background-attachment: fixed;
+  margin: 0;
+}
+
+/* Felt texture overlay */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg width='40' height='40' viewBox='0 0 40 40' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%23ffffff' fill-opacity='0.02'%3E%3Cpath d='M0 0h1v1H0zM10 10h1v1h-1zM20 5h1v1h-1zM30 15h1v1h-1zM5 25h1v1H5zM15 35h1v1h-1zM25 20h1v1h-1zM35 30h1v1h-1z'/%3E%3C/g%3E%3C/svg%3E");
+  pointer-events: none;
+  z-index: 0;
+}
+
+#root {
+  position: relative;
+  z-index: 1;
+}
+
+/* Casino card styling */
+.casino-card {
+  background: linear-gradient(135deg, rgba(26, 26, 46, 0.9), rgba(10, 10, 30, 0.95));
+  border: 1px solid rgba(212, 168, 67, 0.3);
+  border-radius: 12px;
+  box-shadow:
+    0 4px 20px rgba(0, 0, 0, 0.4),
+    inset 0 1px 0 rgba(212, 168, 67, 0.1);
+}
+
+.casino-card:hover {
+  border-color: rgba(212, 168, 67, 0.5);
+  box-shadow:
+    0 8px 30px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(212, 168, 67, 0.2);
+}
+
+/* Neon glow button */
+.btn-neon {
+  background: linear-gradient(135deg, #d4a843, #b8922f);
+  color: #0a0a1e;
+  font-weight: 700;
+  border-radius: 8px;
+  padding: 0.5rem 1.5rem;
+  transition: all 0.2s;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+  border: none;
+}
+
+.btn-neon:hover {
+  background: linear-gradient(135deg, #f0c95c, #d4a843);
+  box-shadow: 0 0 20px rgba(212, 168, 67, 0.4);
+}
+
+.btn-neon:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-danger {
+  background: linear-gradient(135deg, #c0392b, #962d22);
+  color: white;
+  font-weight: 600;
+  border-radius: 8px;
+  padding: 0.5rem 1.5rem;
+  transition: all 0.2s;
+  cursor: pointer;
+  border: none;
+}
+
+.btn-danger:hover {
+  background: linear-gradient(135deg, #e74c3c, #c0392b);
+  box-shadow: 0 0 20px rgba(192, 57, 43, 0.4);
+}
+
+.btn-sm {
+  padding: 0.25rem 0.75rem;
+  font-size: 0.8rem;
+}
+
+/* Status badges */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.15rem 0.6rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.badge-running {
+  background: rgba(57, 255, 20, 0.15);
+  color: #39ff14;
+  border: 1px solid rgba(57, 255, 20, 0.3);
+  animation: pulse-neon 2s infinite;
+}
+
+.badge-completed {
+  background: rgba(212, 168, 67, 0.15);
+  color: #d4a843;
+  border: 1px solid rgba(212, 168, 67, 0.3);
+}
+
+.badge-failed {
+  background: rgba(192, 57, 43, 0.15);
+  color: #e74c3c;
+  border: 1px solid rgba(192, 57, 43, 0.3);
+}
+
+.badge-pending {
+  background: rgba(255, 255, 255, 0.1);
+  color: #aaa;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+@keyframes pulse-neon {
+  0%, 100% { box-shadow: 0 0 5px rgba(57, 255, 20, 0.3); }
+  50% { box-shadow: 0 0 15px rgba(57, 255, 20, 0.5); }
+}
+
+/* Table styling */
+table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+th {
+  text-align: left;
+  padding: 0.75rem 1rem;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: #d4a843;
+  border-bottom: 1px solid rgba(212, 168, 67, 0.2);
+}
+
+td {
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.85rem;
+}
+
+tr:hover td {
+  background: rgba(212, 168, 67, 0.05);
+}
+
+input, select {
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(212, 168, 67, 0.3);
+  border-radius: 8px;
+  padding: 0.5rem 0.75rem;
+  color: white;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+input:focus, select:focus {
+  outline: none;
+  border-color: #d4a843;
+  box-shadow: 0 0 10px rgba(212, 168, 67, 0.2);
+}
+
+/* Slot machine animations */
+@keyframes blink-light {
+  0% { opacity: 0.3; }
+  100% { opacity: 1; }
+}
+
+@keyframes slot-enter {
+  0% {
+    opacity: 0;
+    transform: translateY(-12px);
+    text-shadow: 0 0 20px rgba(57, 255, 20, 0.8);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+    text-shadow: none;
+  }
+}
+
+.slot-line-enter {
+  animation: slot-enter 0.4s ease-out;
+}
+
+/* Custom scrollbar for log window */
+.scrollbar-thin::-webkit-scrollbar {
+  width: 6px;
+}
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: rgba(212, 168, 67, 0.3);
+  border-radius: 3px;
+}
+.scrollbar-thin::-webkit-scrollbar-thumb:hover {
+  background: rgba(212, 168, 67, 0.5);
+}
