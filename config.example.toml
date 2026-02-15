@@ -12,4 +12,6 @@ enabled = false
 service_url = "https://bsky.social"
 username = ""
 app_password = ""
+owner_username = ""
 post_template = "Jackpot! Found an open {proto} host{hostname_suffix}\n{asn}\n{ip_type}"
+follow_up_template = "If you are the owner, you may contact {owner_username} to claim your prize!"

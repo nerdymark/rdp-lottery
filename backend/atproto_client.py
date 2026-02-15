@@ -3,7 +3,7 @@
 import logging
 from typing import Optional
 
-from atproto import Client
+from atproto import Client, models
 from atproto.exceptions import AtProtocolError
 
 from backend.config import AtprotoConfig
@@ -85,12 +85,17 @@ class BlueskyAnnouncer:
 
             with open(screenshot_path, "rb") as f:
                 image_data = f.read()
-            self.client.send_image(
+            post_ref = self.client.send_image(
                 text=text,
                 image=image_data,
                 image_alt=f"{proto} login screen",
             )
             logger.info(f"Announced {proto} host to Bluesky with screenshot")
+
+            # Post follow-up reply if configured
+            if self.config.follow_up_template and post_ref:
+                self._send_follow_up(post_ref, proto)
+
             return True
         except AtProtocolError as e:
             logger.error(f"Failed to post to Bluesky: {e}")
@@ -98,3 +103,27 @@ class BlueskyAnnouncer:
         except Exception as e:
             logger.error(f"Unexpected error posting to Bluesky: {e}")
             return False
+
+    def _send_follow_up(self, parent_ref, proto: str) -> None:
+        """Post a follow-up reply to an announcement."""
+        try:
+            owner = self.config.owner_username.strip()
+            text = self.config.follow_up_template.format(
+                owner_username=f"@{owner}" if owner else "",
+                proto=proto,
+            )
+            if len(text) > 300:
+                text = text[:297] + "..."
+
+            strong_ref = models.ComAtprotoRepoStrongRef.Main(
+                uri=parent_ref.uri,
+                cid=parent_ref.cid,
+            )
+            reply_ref = models.AppBskyFeedPost.ReplyRef(
+                root=strong_ref,
+                parent=strong_ref,
+            )
+            self.client.send_post(text=text, reply_to=reply_ref)
+            logger.info("Posted follow-up reply to announcement")
+        except Exception as e:
+            logger.error(f"Failed to post follow-up reply: {e}")

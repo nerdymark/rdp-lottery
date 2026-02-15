@@ -24,7 +24,9 @@ class AtprotoConfig:
     service_url: str = "https://bsky.social"
     username: str = ""
     app_password: str = ""
+    owner_username: str = ""
     post_template: str = "Jackpot! Found an open {proto} host{hostname_suffix}\n{asn}\n{ip_type}"
+    follow_up_template: str = ""
 
 
 @dataclass
