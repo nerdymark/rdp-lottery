@@ -5,6 +5,7 @@ export interface Subnet {
   is_active: number
   created_at: string
   updated_at: string
+  host_count: number
 }
 
 export interface Scan {
@@ -62,6 +63,15 @@ export interface Host {
   vnc_auth_required: number | null
   vnc_desktop_name: string
   vnc_screenshot_path: string
+  web_screenshots: WebScreenshot[]
+}
+
+export interface WebScreenshot {
+  port: number
+  url: string
+  title: string
+  status_code: number
+  screenshot_path: string
 }
 
 export interface HostStats {
@@ -85,4 +95,56 @@ export interface VncRandomHost {
   city: string
   asn: string
   desktop_name: string
+}
+
+// GeoIP
+export interface GeoipStatus {
+  imported: boolean
+  csv_date: string | null
+  last_updated: string | null
+  total_blocks: number
+  import_running: boolean
+  import_progress: number | null
+}
+
+export interface GeoipCountry {
+  country: string
+  block_count: number
+}
+
+export interface GeoipState {
+  state: string
+  block_count: number
+}
+
+export interface GeoipCity {
+  city: string
+  block_count: number
+}
+
+export interface GeoipBlock {
+  ip_start: string
+  ip_end: string
+  total_ips: number
+  cidrs: string[]
+  cidr_count: number
+  latitude: number | null
+  longitude: number | null
+  asn: string
+  isp: string
+  ip_type: string
+}
+
+export interface GeoipBlocksResponse {
+  blocks: GeoipBlock[]
+  total: number
+  page: number
+  page_size: number
+  total_pages: number
+}
+
+export interface BulkSubnetResponse {
+  created: number
+  skipped: number
+  scans_queued: number
 }

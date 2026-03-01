@@ -14,6 +14,7 @@ from fastapi.responses import FileResponse, StreamingResponse
 
 from backend.config import Config, load_config
 from backend.database import init_db, cleanup_orphaned_scans
+from backend.geoip_db import init_geoip_db
 from backend.scanner import NetworkScanner
 from backend.atproto_client import BlueskyAnnouncer
 
@@ -76,6 +77,8 @@ async def lifespan(app: FastAPI):
 
     _config = load_config()
     init_db(_config.app.database_path)
+    if _config.geoip.enabled:
+        init_geoip_db(_config.geoip.database_path)
     orphaned = cleanup_orphaned_scans(_config.app.database_path)
     if orphaned:
         logging.getLogger(__name__).warning(f"Cleaned up {orphaned} orphaned scan(s)")
@@ -97,11 +100,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-from backend.routers import subnets, scans, hosts  # noqa: E402
+from backend.routers import subnets, scans, hosts, geoip  # noqa: E402
 
 app.include_router(subnets.router)
 app.include_router(scans.router)
 app.include_router(hosts.router)
+app.include_router(geoip.router)
 
 
 # --- Screenshot endpoint ---

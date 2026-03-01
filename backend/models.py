@@ -24,6 +24,7 @@ class SubnetResponse(BaseModel):
     is_active: int
     created_at: str
     updated_at: str
+    host_count: int = 0
 
 
 # --- Scan ---
@@ -81,6 +82,7 @@ class HostResponse(BaseModel):
     vnc_auth_required: Optional[int] = None
     vnc_desktop_name: str = ""
     vnc_screenshot_path: str = ""
+    web_screenshots: list = []
 
 
 class HostStats(BaseModel):
@@ -106,3 +108,61 @@ class VncRandomHost(BaseModel):
     city: str = ""
     asn: str = ""
     desktop_name: str = ""
+
+
+# --- GeoIP ---
+
+class GeoipStatusResponse(BaseModel):
+    imported: bool
+    csv_date: Optional[str] = None
+    last_updated: Optional[str] = None
+    total_blocks: int
+    import_running: bool = False
+    import_progress: Optional[int] = None
+
+
+class GeoipCountryResponse(BaseModel):
+    country: str
+    block_count: int
+
+
+class GeoipStateResponse(BaseModel):
+    state: str
+    block_count: int
+
+
+class GeoipCityResponse(BaseModel):
+    city: str
+    block_count: int
+
+
+class GeoipBlock(BaseModel):
+    ip_start: str
+    ip_end: str
+    total_ips: int
+    cidrs: list[str]
+    cidr_count: int
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    asn: str = ""
+    isp: str = ""
+    ip_type: str = ""
+
+
+class GeoipBlocksResponse(BaseModel):
+    blocks: list[GeoipBlock]
+    total: int
+    page: int
+    page_size: int
+    total_pages: int
+
+
+class BulkSubnetCreate(BaseModel):
+    cidrs: list[str]
+    label: str = ""
+
+
+class BulkSubnetResponse(BaseModel):
+    created: int
+    skipped: int
+    scans_queued: int = 0

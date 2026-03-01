@@ -1,4 +1,7 @@
-import type { Subnet, Scan, Host, HostStats, FeedTarget, VncRandomHost } from './types'
+import type {
+  Subnet, Scan, Host, HostStats, FeedTarget, VncRandomHost,
+  GeoipStatus, GeoipCountry, GeoipState, GeoipCity, GeoipBlocksResponse, BulkSubnetResponse,
+} from './types'
 
 const BASE = '/api'
 
@@ -47,3 +50,24 @@ export const listHosts = (opts?: { subnetId?: number; rdpOnly?: boolean; vncOnly
 }
 export const getHost = (id: number) => request<Host>(`/hosts/${id}`)
 export const getHostStats = () => request<HostStats>('/hosts/stats')
+export const reannounceHost = (id: number) =>
+  request<{ message: string }>(`/hosts/${id}/reannounce`, { method: 'POST' })
+
+// GeoIP
+export const getGeoipStatus = () => request<GeoipStatus>('/geoip/status')
+export const triggerGeoipImport = () =>
+  request<{ message: string }>('/geoip/import', { method: 'POST' })
+export const getGeoipCountries = () => request<GeoipCountry[]>('/geoip/countries')
+export const getGeoipStates = (country: string) =>
+  request<GeoipState[]>(`/geoip/states?country=${encodeURIComponent(country)}`)
+export const getGeoipCities = (country: string, state: string) =>
+  request<GeoipCity[]>(`/geoip/cities?country=${encodeURIComponent(country)}&state=${encodeURIComponent(state)}`)
+export const getGeoipBlocks = (country: string, state: string, city: string, page = 1, pageSize = 50) =>
+  request<GeoipBlocksResponse>(
+    `/geoip/blocks?country=${encodeURIComponent(country)}&state=${encodeURIComponent(state)}&city=${encodeURIComponent(city)}&page=${page}&page_size=${pageSize}`
+  )
+export const addGeoipSubnets = (cidrs: string[], label = '') =>
+  request<BulkSubnetResponse>('/geoip/add-subnets', {
+    method: 'POST',
+    body: JSON.stringify({ cidrs, label }),
+  })

@@ -70,13 +70,28 @@ class BlueskyAnnouncer:
             hostname = host.get("hostname", "").strip()
             hostname_suffix = f": {hostname}" if hostname else ""
             asn = host.get("asn", "").strip()
+            isp = host.get("isp", "").strip()
             ip_type = host.get("ip_type", "").strip()
+            city = host.get("city", "").strip()
+            country_code = host.get("country_code", "").strip()
+
+            # Build full location string: "Hayward / US / AS6167 Verizon Business"
+            location_parts = []
+            if city:
+                location_parts.append(city)
+            if country_code:
+                location_parts.append(country_code)
+            asn_full = f"{asn} {isp}".strip() if asn else isp
+            if asn_full:
+                location_parts.append(asn_full)
+            location = " / ".join(location_parts)
 
             text = self.config.post_template.format(
                 proto=proto,
                 hostname_suffix=hostname_suffix,
                 asn=asn,
                 ip_type=ip_type,
+                location=location,
             )
 
             # Truncate to 300 char limit
@@ -108,12 +123,31 @@ class BlueskyAnnouncer:
         """Post a follow-up reply to an announcement."""
         try:
             owner = self.config.owner_username.strip()
+            mention_text = f"@{owner}" if owner else ""
             text = self.config.follow_up_template.format(
-                owner_username=f"@{owner}" if owner else "",
+                owner_username=mention_text,
                 proto=proto,
             )
             if len(text) > 300:
                 text = text[:297] + "..."
+
+            # Build mention facet so @handle becomes a clickable mention
+            facets = []
+            if owner and mention_text in text:
+                try:
+                    resolved = self.client.resolve_handle(owner)
+                    mention_start = text.index(mention_text)
+                    byte_start = len(text[:mention_start].encode("utf-8"))
+                    byte_end = byte_start + len(mention_text.encode("utf-8"))
+                    facets.append(models.AppBskyRichtextFacet.Main(
+                        index=models.AppBskyRichtextFacet.ByteSlice(
+                            byte_start=byte_start,
+                            byte_end=byte_end,
+                        ),
+                        features=[models.AppBskyRichtextFacet.Mention(did=resolved.did)],
+                    ))
+                except Exception as e:
+                    logger.warning(f"Could not resolve handle {owner} for mention: {e}")
 
             strong_ref = models.ComAtprotoRepoStrongRef.Main(
                 uri=parent_ref.uri,
@@ -123,7 +157,7 @@ class BlueskyAnnouncer:
                 root=strong_ref,
                 parent=strong_ref,
             )
-            self.client.send_post(text=text, reply_to=reply_ref)
+            self.client.send_post(text=text, reply_to=reply_ref, facets=facets or None)
             logger.info("Posted follow-up reply to announcement")
         except Exception as e:
             logger.error(f"Failed to post follow-up reply: {e}")
