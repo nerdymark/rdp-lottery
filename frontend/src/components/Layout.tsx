@@ -6,6 +6,7 @@ const links = [
   { to: '/subnets', label: 'Subnets' },
   { to: '/hosts', label: 'Hosts' },
   { to: '/scans', label: 'Scan Log' },
+  { to: '/geoip', label: 'GeoIP' },
 ]
 
 export default function Layout({ children }: { children: ReactNode }) {

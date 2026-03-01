@@ -23,6 +23,9 @@ config.toml
 # Scan artifacts
 screenshots/
 
+# GeoIP data files
+*.csv.gz
+
 # OS
 .DS_Store
 Thumbs.db

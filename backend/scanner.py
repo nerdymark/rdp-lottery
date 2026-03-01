@@ -17,7 +17,24 @@ import nmap
 
 from backend.config import ScannerConfig
 
+from PIL import Image
+
 logger = logging.getLogger(__name__)
+
+
+def _is_black_image(path: str, threshold: int = 10, black_pct: float = 0.99) -> bool:
+    """Return True if the image is nearly all black.
+
+    Pixels with all channels <= threshold are considered black.
+    If black_pct or more of pixels are black, the image is rejected.
+    """
+    try:
+        img = Image.open(path).convert("RGB")
+        pixels = img.getdata()
+        black = sum(1 for r, g, b in pixels if r <= threshold and g <= threshold and b <= threshold)
+        return (black / len(pixels)) >= black_pct
+    except Exception:
+        return False
 
 
 class NetworkScanner:
@@ -88,7 +105,7 @@ class NetworkScanner:
         try:
             nm.scan(
                 hosts=ip,
-                arguments=f"-A -Pn -T{self.config.timing_template} "
+                arguments=f"-A -Pn --top-ports 2000 -T{self.config.timing_template} "
                           f"--host-timeout {self.config.host_timeout_seconds}s",
             )
         except nmap.PortScannerError as e:
@@ -173,7 +190,7 @@ class NetworkScanner:
             nm.scan(
                 hosts=ip,
                 ports=str(port),
-                arguments=f"-Pn --script rdp-enum-encryption -T{self.config.timing_template}",
+                arguments=f"-Pn --script rdp-enum-encryption -T{self.config.timing_template} --host-timeout {self.config.host_timeout_seconds}s",
             )
         except nmap.PortScannerError as e:
             logger.error(f"NLA check failed for {ip}: {e}")
@@ -223,7 +240,7 @@ class NetworkScanner:
             nm.scan(
                 hosts=ip,
                 ports=str(port),
-                arguments=f"-Pn --script ssl-cert -T{self.config.timing_template}",
+                arguments=f"-Pn --script ssl-cert -T{self.config.timing_template} --host-timeout {self.config.host_timeout_seconds}s",
             )
         except nmap.PortScannerError as e:
             logger.error(f"SSL cert check failed for {ip}: {e}")
@@ -400,6 +417,10 @@ class NetworkScanner:
 
         # Check result regardless of how cleanup went
         if os.path.exists(screenshot_file) and os.path.getsize(screenshot_file) > 0:
+            if _is_black_image(screenshot_file):
+                logger.warning(f"Screenshot for {ip} is all black, discarding")
+                os.remove(screenshot_file)
+                return None
             logger.info(f"Screenshot saved: {screenshot_file}")
             return screenshot_file
         else:
@@ -419,7 +440,7 @@ class NetworkScanner:
             nm.scan(
                 hosts=ip,
                 ports=str(port),
-                arguments=f"-Pn --script vnc-info,vnc-title -T{self.config.timing_template}",
+                arguments=f"-Pn --script vnc-info,vnc-title -T{self.config.timing_template} --host-timeout {self.config.host_timeout_seconds}s",
             )
         except nmap.PortScannerError as e:
             logger.error(f"VNC auth check failed for {ip}: {e}")
@@ -469,6 +490,102 @@ class NetworkScanner:
         logger.info(f"VNC auth for {ip}: auth_required={vnc_auth_required}, desktop={vnc_desktop_name}")
         return {"vnc_auth_required": vnc_auth_required, "vnc_desktop_name": vnc_desktop_name}
 
+    @staticmethod
+    def detect_web_ports(all_ports: list[dict]) -> list[dict]:
+        """Detect HTTP/HTTPS services from nmap port scan results.
+
+        Returns list of {"port": N, "ssl": bool} dicts.
+        """
+        COMMON_WEB_PORTS = {80, 443, 8080, 8443, 8000, 8888, 9090, 3000, 4443}
+        SSL_PORTS = {443, 8443, 4443}
+        WEB_SERVICES = {"http", "https", "ssl/http", "http-proxy", "https-alt"}
+        WEB_PRODUCTS = {"apache", "nginx", "iis", "lighttpd", "caddy", "tomcat"}
+
+        seen_ports: set[int] = set()
+        results: list[dict] = []
+
+        for p in all_ports:
+            port = p.get("port")
+            if port is None or port in seen_ports:
+                continue
+
+            service = (p.get("service") or "").lower()
+            product = (p.get("product") or "").lower()
+            is_web = False
+
+            # Check service name
+            for ws in WEB_SERVICES:
+                if ws in service:
+                    is_web = True
+                    break
+
+            # Check product name
+            if not is_web:
+                for wp in WEB_PRODUCTS:
+                    if wp in product:
+                        is_web = True
+                        break
+
+            # Check common web ports
+            if not is_web and port in COMMON_WEB_PORTS:
+                is_web = True
+
+            if is_web:
+                ssl = (
+                    "ssl" in service
+                    or "https" in service
+                    or port in SSL_PORTS
+                )
+                results.append({"port": port, "ssl": ssl})
+                seen_ports.add(port)
+
+        return results
+
+    def capture_web_screenshot(self, ip: str, port: int, ssl: bool, output_dir: str) -> Optional[dict]:
+        """Capture a screenshot of a web service using playwright headless Chromium.
+
+        Returns dict with port, url, title, status_code, screenshot_path, or None on failure.
+        """
+        scheme = "https" if ssl else "http"
+        url = f"{scheme}://{ip}:{port}"
+        Path(output_dir).mkdir(parents=True, exist_ok=True)
+        screenshot_file = os.path.join(output_dir, f"web_{ip}_{port}.png")
+
+        logger.info(f"Capturing web screenshot for {url}")
+        try:
+            from playwright.sync_api import sync_playwright
+            with sync_playwright() as p:
+                browser = p.chromium.launch(headless=True)
+                page = browser.new_page(
+                    viewport={"width": 1280, "height": 720},
+                    ignore_https_errors=True,
+                )
+                response = page.goto(url, timeout=15000, wait_until="domcontentloaded")
+                title = page.title()
+                status_code = response.status if response else 0
+                page.screenshot(path=screenshot_file)
+                browser.close()
+
+            if os.path.exists(screenshot_file) and os.path.getsize(screenshot_file) > 0:
+                if _is_black_image(screenshot_file):
+                    logger.warning(f"Web screenshot for {url} is all black, discarding")
+                    os.remove(screenshot_file)
+                    return None
+                logger.info(f"Web screenshot saved: {screenshot_file}")
+                return {
+                    "port": port,
+                    "url": url,
+                    "title": title,
+                    "status_code": status_code,
+                    "screenshot_path": screenshot_file,
+                }
+            else:
+                logger.warning(f"Web screenshot file not created for {url}")
+                return None
+        except Exception as e:
+            logger.warning(f"Web screenshot failed for {url}: {e}")
+            return None
+
     def capture_vnc_screenshot(self, ip: str, output_dir: str, port: int = 5900) -> Optional[str]:
         """Capture a screenshot of a VNC desktop using vncdotool.
 
@@ -485,12 +602,17 @@ class NetworkScanner:
 
         logger.info(f"Capturing VNC screenshot for {ip}:{port}")
         try:
+            # Wiggle mouse to wake sleeping displays, then capture
             result = subprocess.run(
-                [vncdo, "-s", f"{ip}::{port}", "capture", screenshot_file],
-                capture_output=True, text=True, timeout=15,
+                [vncdo, "-s", f"{ip}::{port}",
+                 "move", "100", "100", "move", "200", "200", "move", "100", "100",
+                 "pause", "1",
+                 "capture", screenshot_file],
+                capture_output=True, text=True, timeout=20,
             )
             if result.returncode != 0:
-                logger.warning(f"vncdo failed for {ip} (code {result.returncode}): {result.stderr.strip()}")
+                logger.debug(f"vncdo stderr for {ip}: {result.stderr.strip()}")
+                logger.warning(f"vncdo failed for {ip}:{port} (code {result.returncode})")
                 return None
         except subprocess.TimeoutExpired:
             logger.warning(f"VNC screenshot timed out for {ip}")
@@ -500,6 +622,10 @@ class NetworkScanner:
             return None
 
         if os.path.exists(screenshot_file) and os.path.getsize(screenshot_file) > 0:
+            if _is_black_image(screenshot_file):
+                logger.warning(f"VNC screenshot for {ip} is all black, discarding")
+                os.remove(screenshot_file)
+                return None
             logger.info(f"VNC screenshot saved: {screenshot_file}")
             return screenshot_file
         else:

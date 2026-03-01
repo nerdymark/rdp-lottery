@@ -166,6 +166,7 @@ export default function SubnetManager() {
               <tr>
                 <th>CIDR</th>
                 <th>Label</th>
+                <th>Hosts</th>
                 <th>Status</th>
                 <th>Actions</th>
               </tr>
@@ -175,6 +176,7 @@ export default function SubnetManager() {
                 <tr key={subnet.id}>
                   <td className="text-white font-semibold">{subnet.cidr}</td>
                   <td className="text-gray-300">{subnet.label || '—'}</td>
+                  <td className="text-white font-mono">{subnet.host_count}</td>
                   <td>
                     <button
                       onClick={() =>

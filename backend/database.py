@@ -83,6 +83,7 @@ def init_db(db_path: str) -> None:
         ("vnc_auth_required", "INTEGER", "NULL"),
         ("vnc_desktop_name", "TEXT", "''"),
         ("vnc_screenshot_path", "TEXT", "''"),
+        ("web_screenshots", "TEXT", "'[]'"),
     ]
     for col, col_type, default in migrations:
         try:
@@ -128,7 +129,11 @@ def create_subnet(db_path: str, cidr: str, label: str = "") -> dict:
 def list_subnets(db_path: str) -> list[dict]:
     conn = get_connection(db_path)
     try:
-        return [dict(r) for r in conn.execute("SELECT * FROM subnets ORDER BY id").fetchall()]
+        return [dict(r) for r in conn.execute(
+            "SELECT subnets.*, COALESCE(h.cnt, 0) AS host_count "
+            "FROM subnets LEFT JOIN (SELECT subnet_id, COUNT(*) AS cnt FROM hosts GROUP BY subnet_id) h "
+            "ON subnets.id = h.subnet_id ORDER BY subnets.id"
+        ).fetchall()]
     finally:
         conn.close()
 
@@ -275,10 +280,11 @@ def upsert_host(db_path: str, scan_id: int, subnet_id: int, ip: str, **kwargs) -
                         "all_ports", "mac_address", "nla_required", "security_protocols", "screenshot_path",
                         "asn", "isp", "org", "country", "country_code", "city",
                         "latitude", "longitude", "ip_type", "reverse_dns",
-                        "vnc_open", "vnc_auth_required", "vnc_desktop_name", "vnc_screenshot_path"):
+                        "vnc_open", "vnc_auth_required", "vnc_desktop_name", "vnc_screenshot_path",
+                        "web_screenshots"):
                 if key in kwargs and kwargs[key] is not None:
                     val = kwargs[key]
-                    if key in ("all_ports", "security_protocols") and isinstance(val, list):
+                    if key in ("all_ports", "security_protocols", "web_screenshots") and isinstance(val, list):
                         val = json.dumps(val)
                     updates[key] = val
 
@@ -294,6 +300,9 @@ def upsert_host(db_path: str, scan_id: int, subnet_id: int, ip: str, **kwargs) -
             security_protocols = kwargs.get("security_protocols", [])
             if isinstance(security_protocols, list):
                 security_protocols = json.dumps(security_protocols)
+            web_screenshots = kwargs.get("web_screenshots", [])
+            if isinstance(web_screenshots, list):
+                web_screenshots = json.dumps(web_screenshots)
             cursor = conn.execute(
                 """INSERT INTO hosts
                    (scan_id, subnet_id, ip, hostname, netbios_name, domain, os_guess,
@@ -301,10 +310,11 @@ def upsert_host(db_path: str, scan_id: int, subnet_id: int, ip: str, **kwargs) -
                     nla_required, security_protocols, screenshot_path,
                     asn, isp, org, country, country_code, city,
                     latitude, longitude, ip_type, reverse_dns,
-                    vnc_open, vnc_auth_required, vnc_desktop_name, vnc_screenshot_path)
+                    vnc_open, vnc_auth_required, vnc_desktop_name, vnc_screenshot_path,
+                    web_screenshots)
                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?,
                            ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-                           ?, ?, ?, ?)""",
+                           ?, ?, ?, ?, ?)""",
                 (
                     scan_id, subnet_id, ip,
                     kwargs.get("hostname", ""),
@@ -332,6 +342,7 @@ def upsert_host(db_path: str, scan_id: int, subnet_id: int, ip: str, **kwargs) -
                     kwargs.get("vnc_auth_required"),
                     kwargs.get("vnc_desktop_name", ""),
                     kwargs.get("vnc_screenshot_path", ""),
+                    web_screenshots,
                 ),
             )
             conn.commit()
@@ -379,7 +390,7 @@ def get_host(db_path: str, host_id: int) -> Optional[dict]:
 
 def _parse_host_json(d: dict) -> dict:
     """Parse JSON string fields in a host dict."""
-    for key in ("all_ports", "security_protocols"):
+    for key in ("all_ports", "security_protocols", "web_screenshots"):
         if isinstance(d.get(key), str):
             try:
                 d[key] = json.loads(d[key])

@@ -2,7 +2,7 @@
 
 import json
 import logging
-import threading
+import concurrent.futures
 import urllib.request
 from typing import Optional
 
@@ -15,6 +15,12 @@ from backend.models import ScanTrigger, ScanResponse, FeedTarget, VncRandomHost
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/scans", tags=["scans"])
+
+MAX_CONCURRENT_SCANS = 4
+_scan_pool = concurrent.futures.ThreadPoolExecutor(
+    max_workers=MAX_CONCURRENT_SCANS,
+    thread_name_prefix="scan",
+)
 
 
 def _get_db_path() -> str:
@@ -64,13 +70,14 @@ def _run_scan(scan_id: int, subnet: dict, db_path: str) -> None:
             except Exception as e:
                 logger.error(f"Full scan failed for {host_info['ip']}: {e}")
 
-            # Phase 2.25: SSL certificate hostname/domain
+            # Phase 2.25: SSL certificate hostname/domain (fallback only)
             try:
                 cert_info = scanner.check_ssl_cert(host_info["ip"], port=rdp_port)
                 if cert_info.get("hostname"):
                     logger.info(f"SSL cert for {host_info['ip']}: hostname={cert_info.get('hostname')}, "
                                 f"domain={cert_info.get('domain')}")
-                    host_info["hostname"] = cert_info["hostname"]
+                    if not host_info.get("hostname"):
+                        host_info["hostname"] = cert_info["hostname"]
                 if cert_info.get("domain") and not host_info.get("domain"):
                     host_info["domain"] = cert_info["domain"]
             except Exception as e:
@@ -115,14 +122,32 @@ def _run_scan(scan_id: int, subnet: dict, db_path: str) -> None:
                 except Exception as e:
                     logger.error(f"VNC auth check failed for {host_info['ip']}:{vnc_port}: {e}")
 
-                # VNC screenshot for no-auth port
-                if vnc_info.get("vnc_auth_required") == 0 and not host_info.get("vnc_screenshot_path"):
+                # VNC screenshot for no-auth or inconclusive port (vncdo fails gracefully if auth required)
+                if vnc_info.get("vnc_auth_required") != 1 and not host_info.get("vnc_screenshot_path"):
                     try:
                         vnc_screenshot = scanner.capture_vnc_screenshot(host_info["ip"], "screenshots", port=vnc_port)
                         if vnc_screenshot:
                             host_info["vnc_screenshot_path"] = vnc_screenshot
                     except Exception as e:
                         logger.error(f"VNC screenshot failed for {host_info['ip']}:{vnc_port}: {e}")
+
+        # Phase 4.5: Web screenshots
+        for host_info in discovered:
+            all_ports = host_info.get("all_ports", [])
+            web_ports = scanner.detect_web_ports(all_ports)
+            if web_ports:
+                web_screenshots = []
+                for wp in web_ports:
+                    try:
+                        result = scanner.capture_web_screenshot(
+                            host_info["ip"], wp["port"], wp["ssl"], "screenshots"
+                        )
+                        if result:
+                            web_screenshots.append(result)
+                    except Exception as e:
+                        logger.error(f"Web screenshot failed for {host_info['ip']}:{wp['port']}: {e}")
+                if web_screenshots:
+                    host_info["web_screenshots"] = web_screenshots
 
         # Phase 5: Host enrichment (ASN, GeoIP, reverse DNS, IP type)
         for host_info in discovered:
@@ -160,6 +185,7 @@ def _run_scan(scan_id: int, subnet: dict, db_path: str) -> None:
                 vnc_auth_required=host_info.get("vnc_auth_required"),
                 vnc_desktop_name=host_info.get("vnc_desktop_name", ""),
                 vnc_screenshot_path=host_info.get("vnc_screenshot_path", ""),
+                web_screenshots=host_info.get("web_screenshots", []),
             )
 
             # Announce new RDP/VNC hosts via Bluesky
@@ -216,12 +242,7 @@ def trigger_scan(body: ScanTrigger, background_tasks: BackgroundTasks):
     for subnet in subnets:
         scan = db.create_scan(db_path, subnet["id"])
         scans.append(scan)
-        thread = threading.Thread(
-            target=_run_scan,
-            args=(scan["id"], subnet, db_path),
-            daemon=True,
-        )
-        thread.start()
+        _scan_pool.submit(_run_scan, scan["id"], subnet, db_path)
 
     return scans
 

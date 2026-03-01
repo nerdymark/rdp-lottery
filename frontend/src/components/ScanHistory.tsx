@@ -1,9 +1,18 @@
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
-import { listScans } from '../api'
+import { listScans, triggerScan } from '../api'
 
 export default function ScanHistory() {
+  const qc = useQueryClient()
   const scans = useQuery({ queryKey: ['scans'], queryFn: () => listScans() })
+
+  const rescan = useMutation({
+    mutationFn: (subnetId: number) => triggerScan(subnetId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['scans'] })
+      qc.invalidateQueries({ queryKey: ['activeScans'] })
+    },
+  })
 
   return (
     <div className="space-y-8">
@@ -30,6 +39,7 @@ export default function ScanHistory() {
                 <th>Started</th>
                 <th>Finished</th>
                 <th>Error</th>
+                <th>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -86,6 +96,15 @@ export default function ScanHistory() {
                     </td>
                     <td className="text-casino-red-bright text-xs max-w-48 truncate">
                       {scan.error || ''}
+                    </td>
+                    <td>
+                      <button
+                        className="btn-neon btn-sm"
+                        onClick={() => rescan.mutate(scan.subnet_id)}
+                        disabled={rescan.isPending || scan.status === 'running' || scan.status === 'pending'}
+                      >
+                        Re-scan
+                      </button>
                     </td>
                   </tr>
                 )

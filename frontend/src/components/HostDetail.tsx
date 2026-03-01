@@ -1,6 +1,6 @@
 import { useParams, Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { getHost, triggerScan } from '../api'
+import { getHost, triggerScan, reannounceHost } from '../api'
 
 export default function HostDetail() {
   const { id } = useParams<{ id: string }>()
@@ -18,10 +18,18 @@ export default function HostDetail() {
     },
   })
 
+  const reannounce = useMutation({
+    mutationFn: () => reannounceHost(Number(id)),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['host', id] })
+    },
+  })
+
   if (host.isLoading) return <p className="text-gray-400">Loading...</p>
   if (!host.data) return <p className="text-casino-red-bright">Host not found.</p>
 
   const h = host.data
+  const webPorts = new Set((h.web_screenshots || []).map((ws) => ws.port))
 
   return (
     <div className="space-y-8">
@@ -50,13 +58,24 @@ export default function HostDetail() {
         {h.nla_required === 1 && (
           <span className="badge badge-pending">NLA</span>
         )}
-        <button
-          className="btn-neon ml-auto text-sm"
-          disabled={rescan.isPending}
-          onClick={() => rescan.mutate(h.subnet_id)}
-        >
-          {rescan.isPending ? 'Scanning...' : 'Re-scan'}
-        </button>
+        <div className="ml-auto flex gap-2">
+          {(h.screenshot_path || h.vnc_screenshot_path) && (
+            <button
+              className="btn-neon text-sm"
+              disabled={reannounce.isPending}
+              onClick={() => reannounce.mutate()}
+            >
+              {reannounce.isPending ? 'Announcing...' : 'Re-announce'}
+            </button>
+          )}
+          <button
+            className="btn-neon text-sm"
+            disabled={rescan.isPending}
+            onClick={() => rescan.mutate(h.subnet_id)}
+          >
+            {rescan.isPending ? 'Scanning...' : 'Re-scan'}
+          </button>
+        </div>
       </div>
 
       {/* Host info cards */}
@@ -151,6 +170,38 @@ export default function HostDetail() {
         </div>
       )}
 
+      {/* Web Service Screenshots */}
+      {h.web_screenshots?.length > 0 && (
+        <div className="casino-card p-6">
+          <h3 className="text-blue-400 font-bold text-sm uppercase tracking-widest mb-4">
+            Web Services ({h.web_screenshots.length})
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {h.web_screenshots.map((ws, i) => (
+              <div key={i} className="border border-blue-500/20 rounded-lg overflow-hidden">
+                <div className="bg-blue-500/10 px-4 py-2 flex items-center justify-between">
+                  <span className="text-blue-400 font-bold text-sm">:{ws.port}</span>
+                  <span className="text-gray-300 text-sm truncate mx-2">{ws.title || 'Untitled'}</span>
+                  <a
+                    href={ws.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-blue-400 hover:text-blue-300 text-xs font-mono"
+                  >
+                    {ws.url}
+                  </a>
+                </div>
+                <img
+                  src={`/api/screenshots/${ws.screenshot_path.split('/').pop()}`}
+                  alt={`Web service on port ${ws.port}`}
+                  className="w-full"
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Port table */}
       <div className="casino-card p-6">
         <h3 className="text-casino-gold font-bold text-sm uppercase tracking-widest mb-4">
@@ -172,7 +223,7 @@ export default function HostDetail() {
             <tbody>
               {h.all_ports?.map((p, i) => (
                 <tr key={i}>
-                  <td className={`font-bold ${(p.port === 3389 || p.port === 3390) ? 'text-casino-neon' : (p.port === 5900 || p.port === 5901) ? 'text-purple-400' : 'text-white'}`}>
+                  <td className={`font-bold ${(p.port === 3389 || p.port === 3390) ? 'text-casino-neon' : (p.port === 5900 || p.port === 5901) ? 'text-purple-400' : webPorts.has(p.port) ? 'text-blue-400' : 'text-white'}`}>
                     {p.port}
                   </td>
                   <td className="text-gray-400">{p.protocol}</td>

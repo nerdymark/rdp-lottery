@@ -25,8 +25,15 @@ class AtprotoConfig:
     username: str = ""
     app_password: str = ""
     owner_username: str = ""
-    post_template: str = "Jackpot! Found an open {proto} host{hostname_suffix}\n{asn}\n{ip_type}"
+    post_template: str = "Jackpot! Found an open {proto} host{hostname_suffix}\n{location}\n{ip_type}"
     follow_up_template: str = ""
+
+
+@dataclass
+class GeoipConfig:
+    enabled: bool = True
+    database_path: str = "geoip.db"
+    download_url_template: str = "https://download.db-ip.com/free/dbip-city-lite-{YYYY}-{MM}.csv.gz"
 
 
 @dataclass
@@ -34,6 +41,7 @@ class Config:
     app: AppConfig = field(default_factory=AppConfig)
     scanner: ScannerConfig = field(default_factory=ScannerConfig)
     atproto: AtprotoConfig = field(default_factory=AtprotoConfig)
+    geoip: GeoipConfig = field(default_factory=GeoipConfig)
 
 
 def load_config(path: str = "config.toml") -> Config:
@@ -49,4 +57,5 @@ def load_config(path: str = "config.toml") -> Config:
         app=AppConfig(**data.get("app", {})),
         scanner=ScannerConfig(**data.get("scanner", {})),
         atproto=AtprotoConfig(**data.get("atproto", {})),
+        geoip=GeoipConfig(**data.get("geoip", {})),
     )

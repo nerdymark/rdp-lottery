@@ -5,6 +5,7 @@ import SubnetManager from './components/SubnetManager'
 import HostTable from './components/HostTable'
 import HostDetail from './components/HostDetail'
 import ScanHistory from './components/ScanHistory'
+import GeoipBrowser from './components/GeoipBrowser'
 
 export default function App() {
   return (
@@ -15,6 +16,7 @@ export default function App() {
         <Route path="/hosts" element={<HostTable />} />
         <Route path="/hosts/:id" element={<HostDetail />} />
         <Route path="/scans" element={<ScanHistory />} />
+        <Route path="/geoip" element={<GeoipBrowser />} />
       </Routes>
     </Layout>
   )
